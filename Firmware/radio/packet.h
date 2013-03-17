@@ -54,10 +54,6 @@ extern bool packet_is_duplicate(uint8_t len, __xdata uint8_t * __pdata buf, bool
 /// failed
 extern void packet_force_resend(void);
 
-/// set the maximum size of a packet
-///
-extern void packet_set_max_xmit(uint8_t max);
-
 /// set the serial rate in bytes/s
 ///
 /// @param  speed		serial speed bytes/s
@@ -67,6 +63,6 @@ extern void packet_set_serial_speed(uint16_t speed);
 /// inject a packet to be sent when possible
 /// @param buf			buffer to send
 /// @param len			number of bytes
-///			
+///
 extern void packet_inject(__xdata uint8_t * __pdata buf, __pdata uint8_t len);
 

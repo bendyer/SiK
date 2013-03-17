@@ -131,9 +131,6 @@ __pdata uint8_t test_display;
 /// set when we should send a statistics packet on the next round
 static __bit send_statistics;
 
-/// set when we should send a MAVLink report pkt
-extern bool seen_mavlink;
-
 struct tdm_trailer {
 	uint16_t window:13;
 	uint16_t command:1;
@@ -350,7 +347,7 @@ static void temperature_update(void)
 		duty_cycle_offset += 5;
 	} else if (diff > 0) {
 		// slightly over temperature
-		duty_cycle_offset += 1;				
+		duty_cycle_offset += 1;
 	}
 	// limit to minimum of 20% duty cycle to ensure link stays up OK
 	if ((duty_cycle-duty_cycle_offset) < 20) {
@@ -437,8 +434,8 @@ tdm_remote_at(void)
 static void
 handle_at_command(__pdata uint8_t len)
 {
-	if (len < 2 || len > AT_CMD_MAXLEN || 
-	    pbuf[0] != (uint8_t)'R' || 
+	if (len < 2 || len > AT_CMD_MAXLEN ||
+	    pbuf[0] != (uint8_t)'R' ||
 	    pbuf[1] != (uint8_t)'T') {
 		// assume its an AT command reply
 		register uint8_t i;
@@ -501,11 +498,6 @@ tdm_serial_loop(void)
 			test_display = 0;
 		}
 
-		if (seen_mavlink && feature_mavlink_framing && !at_mode_active) {
-			seen_mavlink = false;
-			MAVLink_report();
-		}
-
 		// set right receive channel
 		radio_set_channel(fhop_receive_channel());
 
@@ -518,11 +510,11 @@ tdm_serial_loop(void)
 			// update the activity indication
 			received_packet = true;
 			fhop_set_locked(true);
-			
+
 			// update filtered RSSI value and packet stats
 			statistics.average_rssi = (radio_last_rssi() + 7*(uint16_t)statistics.average_rssi)/8;
 			statistics.receive_count++;
-			
+
 			// we're not waiting for a preamble
 			// any more
 			transmit_wait = 0;
@@ -553,7 +545,7 @@ tdm_serial_loop(void)
 
 				if (trailer.command == 1) {
 					handle_at_command(len);
-				} else if (len != 0 && 
+				} else if (len != 0 &&
 					   !packet_is_duplicate(len, pbuf, trailer.resend) &&
 					   !at_mode_active) {
 					// its user data - send it out
@@ -576,9 +568,10 @@ tdm_serial_loop(void)
 		tdm_state_update(tdelta);
 		last_t = tnow;
 
-		// update link status every 0.5s
+		// update link status and output status packet every 0.5s
 		if (tnow - last_link_update > 32768) {
 			link_update();
+			status_report_write();
 			last_link_update = tnow;
 		}
 
@@ -610,7 +603,7 @@ tdm_serial_loop(void)
 #else
 		if (tdm_state != TDM_TRANSMIT) {
 			continue;
-		}		
+		}
 #endif
 
 		if (transmit_yield != 0) {
@@ -659,7 +652,7 @@ tdm_serial_loop(void)
 		}
 
 		// ask the packet system for the next packet to send
-		if (send_at_command && 
+		if (send_at_command &&
 		    max_xmit >= strlen(remote_at_cmd)) {
 			// send a remote AT command
 			len = strlen(remote_at_cmd);
@@ -680,14 +673,14 @@ tdm_serial_loop(void)
 		trailer.resend = packet_is_resend();
 
 		if (tdm_state == TDM_TRANSMIT &&
-		    len == 0 && 
-		    send_statistics && 
+		    len == 0 &&
+		    send_statistics &&
 		    max_xmit >= sizeof(statistics)) {
 			// send a statistics packet
 			send_statistics = 0;
 			memcpy(pbuf, &statistics, sizeof(statistics));
 			len = sizeof(statistics);
-		
+
 			// mark a stats packet with a zero window
 			trailer.window = 0;
 			trailer.resend = 0;
@@ -752,7 +745,7 @@ tdm_serial_loop(void)
 
 #if 0
 /// build the timing table
-static void 
+static void
 tdm_build_timing_table(void)
 {
 	__pdata uint8_t j;
@@ -811,14 +804,14 @@ tdm_build_timing_table(void)
 
 
 // test hardware CRC code
-static void 
+static void
 crc_test(void)
 {
 	__xdata uint8_t d[4] = { 0x01, 0x00, 0xbb, 0xcc };
 	__pdata uint16_t crc;
 	uint16_t t1, t2;
 	crc = crc16(4, &d[0]);
-	printf("CRC: %x %x\n", crc, 0xb166);	
+	printf("CRC: %x %x\n", crc, 0xb166);
 	t1 = timer2_tick();
 	crc16(MAX_PACKET_LENGTH/2, pbuf);
 	t2 = timer2_tick();
@@ -828,7 +821,7 @@ crc_test(void)
 }
 
 // test golay encoding
-static void 
+static void
 golay_test(void)
 {
 	uint8_t i;
@@ -865,7 +858,6 @@ golay_test(void)
 void
 tdm_init(void)
 {
-	__pdata uint16_t i;
 	__pdata uint8_t air_rate = radio_air_rate();
 	__pdata uint32_t window_width;
 
@@ -927,25 +919,17 @@ tdm_init(void)
 	// not changing the round timings
 	packet_latency += ((settings.preamble_length-10)/2) * ticks_per_byte;
 
-	// tell the packet subsystem our max packet size, which it
-	// needs to know for MAVLink packet boundary detection
-	i = (tx_window_width - packet_latency) / ticks_per_byte;
-	if (i > max_data_packet_length) {
-		i = max_data_packet_length;
-	}
-	packet_set_max_xmit(i);
-
 	// crc_test();
 
 	// tdm_test_timing();
-	
+
 	// golay_test();
 }
 
 
 /// report tdm timings
 ///
-void 
+void
 tdm_report_timing(void)
 {
 	printf("silence_period: %u\n", (unsigned)silence_period); delay_msec(1);

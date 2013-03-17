@@ -69,7 +69,7 @@ extern __pdata uint8_t pdata_canary;
 /// optional features
 extern bool feature_golay;
 extern bool feature_opportunistic_resend;
-extern bool feature_mavlink_framing;
+extern bool feature_status_reports;
 extern bool feature_rtscts;
 
 /// System clock frequency
@@ -105,7 +105,7 @@ extern void	vprintfl(const char * fmt, va_list ap) __reentrant;
 extern void	printfl(const char *fmt, ...) __reentrant;
 #define printf(_fmt, args...)	printfl(_fmt, ##args)		///< avoid fighting with the library printf() prototype
 
-/// start a capture of printf data 
+/// start a capture of printf data
 extern void printf_start_capture(__xdata uint8_t *buf, uint8_t size);
 
 /// end printf capture, returning number of bytes that have been captured
@@ -243,14 +243,14 @@ extern uint8_t radio_air_rate(void);
 /// set the radio transmit power (in dBm)
 ///
 /// @param power		The desired transmit power in dBm
-///				
+///
 ///
 extern void radio_set_transmit_power(uint8_t power);
 
 /// get the currend transmit power (in dBm)
 ///
 /// @return			The actual transmit power in dBm
-///				
+///
 ///
 extern uint8_t radio_get_transmit_power(void);
 
@@ -261,8 +261,8 @@ extern uint8_t radio_get_transmit_power(void);
 ///
 extern bool radio_receive_in_progress(void);
 
-/// send a MAVLink status report packet
-void MAVLink_report(void);
+/// send a status report packet
+void status_report_write(void);
 
 struct radio_settings {
 	uint32_t frequency;

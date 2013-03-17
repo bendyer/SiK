@@ -52,11 +52,11 @@ __code const struct parameter_info {
 } parameter_info[PARAM_MAX] = {
 	{"FORMAT", 		PARAM_FORMAT_CURRENT},
 	{"SERIAL_SPEED",	57}, // match APM default of 57600
-	{"AIR_SPEED",		64}, // relies on MAVLink flow control
+	{"AIR_SPEED",		64},
 	{"NETID",		25},
 	{"TXPOWER",		0},
 	{"ECC",			1},
-	{"MAVLINK",		1},
+	{"STATUSREPORTS",	1},
 	{"OPPRESEND",		1},
 	{"MIN_FREQ",		0},
 	{"MAX_FREQ",		0},
@@ -108,7 +108,7 @@ param_check(__pdata enum ParamID id, __data uint32_t val)
 		break;
 
 	case PARAM_ECC:
-	case PARAM_MAVLINK:
+	case PARAM_STATUSREPORTS:
 	case PARAM_OPPRESEND:
 		// boolean 0/1 only
 		if (val > 1)
@@ -133,7 +133,7 @@ param_set(__data enum ParamID param, __pdata param_t value)
 	switch (param) {
 	case PARAM_TXPOWER:
 		// useful to update power level immediately when range
-		// testing in RSSI mode		
+		// testing in RSSI mode
 		radio_set_transmit_power(value);
 		value = radio_get_transmit_power();
 		break;
@@ -152,9 +152,9 @@ param_set(__data enum ParamID param, __pdata param_t value)
 		lbt_rssi = value;
 		break;
 
-	case PARAM_MAVLINK:
-		feature_mavlink_framing = value?true:false;
-		value = feature_mavlink_framing?1:0;
+	case PARAM_STATUSREPORTS:
+		feature_status_reports = value?true:false;
+		value = feature_status_reports?1:0;
 		break;
 
 	case PARAM_OPPRESEND:

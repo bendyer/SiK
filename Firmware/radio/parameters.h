@@ -52,7 +52,7 @@ enum ParamID {
         PARAM_NETID,			// network ID
         PARAM_TXPOWER,			// transmit power (dBm)
         PARAM_ECC,			// ECC using golay encoding
-	PARAM_MAVLINK,			// MAVLink framing
+	PARAM_STATUSREPORTS,	// output radio status reports on serial link
 	PARAM_OPPRESEND,		// opportunistic resend
 	PARAM_MIN_FREQ,			// min frequency in MHz
 	PARAM_MAX_FREQ,			// max frequency in MHz

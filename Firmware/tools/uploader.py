@@ -3,7 +3,7 @@
 # Serial firmware uploader for the SiK bootloader
 #
 
-import sys, argparse, binascii, serial, glob
+import sys, argparse, binascii, serial, glob, time
 
 class firmware(object):
 	'''Loads a firmware file'''
@@ -17,7 +17,7 @@ class firmware(object):
 		hexstr = line.rstrip()[1:-2]
 		binstr = binascii.unhexlify(hexstr)
 		command = ord(binstr[3])
-		
+
 		# only type 0 records are interesting
 		if (command == 0):
 			address = (ord(binstr[1]) << 8) + ord(binstr[2])
@@ -73,24 +73,24 @@ class uploader(object):
 	READ_MULTI	= chr(0x28)
 	PARAM_ERASE	= chr(0x29)
 	REBOOT		= chr(0x30)
-	
-	PROG_MULTI_MAX	= 32 # 64 causes serial hangs with some USB-serial adapters
-	READ_MULTI_MAX	= 255
+
+	PROG_MULTI_MAX	= 64 # 64 causes serial hangs with some USB-serial adapters
+	READ_MULTI_MAX	= 64
 
 	def __init__(self, portname, atbaudrate=57600):
 		print("Connecting to %s" % portname)
-		self.port = serial.Serial(portname, 115200, timeout=3)
+		self.port = serial.Serial(portname, 57600, timeout=3)
 		self.atbaudrate = atbaudrate
 
 	def __send(self, c):
-		#print("send " + binascii.hexlify(c))
+		print("send " + binascii.hexlify(c))
 		self.port.write(str(c))
 
 	def __recv(self):
 		c = self.port.read(1)
 		if (len(c) < 1):
 			raise RuntimeError("timeout waiting for data")
-		#print("recv " + binascii.hexlify(c))
+		print("recv " + binascii.hexlify(c))
 		return c
 
 	def __getSync(self):
@@ -108,17 +108,17 @@ class uploader(object):
 		# that we might still have in progress
 		self.__send(uploader.NOP * (uploader.PROG_MULTI_MAX + 2))
 		self.port.flushInput()
-		self.__send(uploader.GET_SYNC 
+		self.__send(uploader.GET_SYNC
 				+ uploader.EOC)
 		return self.__getSync()
 
 	# send the CHIP_ERASE command and wait for the bootloader to become ready
 	def __erase(self, erase_params = False):
-		self.__send(uploader.CHIP_ERASE 
+		self.__send(uploader.CHIP_ERASE
 				+ uploader.EOC)
 		self.__getSync()
 		if (erase_params):
-			self.__send(uploader.PARAM_ERASE 
+			self.__send(uploader.PARAM_ERASE
 					+ uploader.EOC)
 			self.__getSync()
 
@@ -144,27 +144,28 @@ class uploader(object):
 		self.__send(data)
 		self.__send(uploader.EOC)
 		self.__getSync()
-		
+
 	# verify a byte in flash
-	def __verify(self, data):
+	def __verify_byte(self, data):
 		self.__send(uploader.READ_FLASH
 				+ uploader.EOC)
 		if (self.__recv() != chr(data)):
 			return False
 		self.__getSync()
 		return True
-		
+
 	# verify multiple bytes in flash
 	def __verify_multi(self, data):
 		self.__send(uploader.READ_MULTI
 				+ chr(len(data))
 				+ uploader.EOC)
+		valid = True
 		for i in data:
 			if (self.__recv() != chr(i)):
-				return False
+				valid = False
 		self.__getSync()
-		return True
-		
+		return valid
+
 	# send the reboot command
 	def __reboot(self):
 		self.__send(uploader.REBOOT)
@@ -177,27 +178,39 @@ class uploader(object):
 	def __program(self, fw):
 		code = fw.code()
 		for address in sorted(code.keys()):
-			self.__set_address(address)
 			groups = self.__split_len(code[address], uploader.PROG_MULTI_MAX)
-			for bytes in groups:
-				self.__program_multi(bytes)
+			i = 0
+			while i < len(groups):
+				try:
+					self.__set_address(address)
+					self.__program_multi(groups[i])
+				except RuntimeError:  # normally a timeout; try again
+					continue
+				else:
+					address += len(groups[i])
+					i += 1
 
 	# verify code
 	def __verify(self, fw):
 		code = fw.code()
 		for address in sorted(code.keys()):
-			self.__set_address(address)
 			groups = self.__split_len(code[address], uploader.READ_MULTI_MAX)
-			for bytes in groups:
-				if (not self.__verify_multi(bytes)):
-					raise RuntimeError("Verification failed in group at 0x%x" % address)
+			i = 0
+			while i < len(groups):
+				try:
+					self.__set_address(address)
+				except RuntimeError:
+					if not self.__verify_multi(bytes):
+						raise RuntimeError("Verification failed in group at 0x%x" % address)
+				else:
+					address += len(groups[i])
+					i += 1
 
 	def autosync(self):
 		'''use AT&UPDATE to put modem in update mode'''
 		import fdpexpect, time
 		ser = fdpexpect.fdspawn(self.port.fileno(), logfile=sys.stdout)
-		if self.atbaudrate != 115200:
-			self.port.setBaudrate(self.atbaudrate)
+		self.port.setBaudrate(self.atbaudrate)
 		print("Trying autosync")
 		ser.send('\r\n')
 		time.sleep(1.0)
@@ -220,8 +233,7 @@ class uploader(object):
 				return True
 			except fdpexpect.TIMEOUT:
 				continue
-		if self.atbaudrate != 115200:
-			self.port.setBaudrate(115200)
+		self.port.setBaudrate(115200)
 		return False
 
 
@@ -254,7 +266,7 @@ class uploader(object):
 		self.__verify(fw)
 		print("done.")
 		self.__reboot()
-	
+
 
 # Parse commandline arguments
 parser = argparse.ArgumentParser(description="Firmware uploader for the SiK radio system.")
